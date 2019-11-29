@@ -76,6 +76,37 @@ class Marketplace(list):
         self.insert(ind, player_card)  # insert player card into same slot
         return out
 
+    def trade(self, player_cards, market_cards):
+        # check if trade is possible
+        if len(player_cards) != len(market_cards):
+            raise Exception("The number of player cards doesn't match the "
+                            "number of market cards for trade.")
+        if len(player_cards) == 1:
+            raise Exception("You can't trade less than 2 cards.")
+        if "camel" in market_cards:
+            raise Exception("You can't trade for camels in the market")
+
+        # check if the requested market_cards are all there
+        mcs = {card: market_cards.count(card) for card in market_cards}
+        print(f"mcs = {mcs}")
+        for card, amount in mcs.items():
+            if self.count(card) < amount:
+                raise Exception(f"There are not enough {card} cards in the "
+                                "marketplace for this trade")
+
+        # start swapping
+        out = []
+        for player_card, market_card in zip(player_cards, market_cards):
+            out.append(self.swap(player_card, market_card))
+
+        return out
+
+    def take_camels(self):
+        pass
+
+    def take_one(self):
+        pass
+
 class Game():
     def __init__(self):
         # create token piles
@@ -118,6 +149,7 @@ class Game():
 
 game = Game()
 mp = game.marketplace
+print(mp)
 #deck = Deck()
 #deck.shuffle()
 #token = Token("diamond", 7)
