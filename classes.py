@@ -1,6 +1,11 @@
 from random import shuffle
 
 
+allowed_token_names = ("diamond", "silver", "gold", "cloth", "spice",
+                       "leather", "combo3", "combo4", "combo5", "largest_herd",
+                       "maharajahs_favourite")
+
+
 class Token():
     """Represents the round goods tokens which give players points. Each token
     should have
@@ -9,6 +14,12 @@ class Token():
     """
 
     def __init__(self, name, value):
+        if name not in allowed_token_names:
+            raise ValueError(f"{name} is not a legal token name.")
+        if value <= 0:
+            raise ValueError("Illegal token value (zero or negative)")
+        if not isinstance(value, int):
+            raise ValueError("Illegal token value (non-integer)")
         self.name = name
         self.value = value
 
@@ -147,9 +158,9 @@ class Game():
         # deal player hands
         pass
 
-game = Game()
-mp = game.marketplace
-print(mp)
+#game = Game()
+#mp = game.marketplace
+#print(mp)
 #deck = Deck()
 #deck.shuffle()
 #token = Token("diamond", 7)
