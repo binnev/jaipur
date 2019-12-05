@@ -164,13 +164,21 @@ class Player():
         type. Return those cards as a list of strings.
         The input can be a single card (string) or a list of strings."""
         if isinstance(cards, str):
-            if cards == "camel":
-                return self.herd.take(cards)
-            else:
-                return self.hand.take(cards)
+            location = self.herd if cards == "camel" else self.hand
+            return location.take(cards)
         else:
             return [self.take(card).pop() for card in cards]
 
+    def give(self, cards):
+        """Give cards to the player. Depending on the card type, these will be
+        stored in the player's hand or herd. Input can be single card (string)
+        or a list of strings."""
+        if isinstance(cards, str):
+            location = self.herd if cards == "camel" else self.hand
+            location.append(cards)
+        else:
+            for card in cards:
+                self.give(card)
 
 class Game():
     def __init__(self):
