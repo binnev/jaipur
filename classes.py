@@ -141,6 +141,11 @@ class Player():
         self.victory_points = 0
         self.herd = Deck()
 
+    def reset(self):
+        self.hand = Deck()
+        self.herd = Deck()
+        self.tokens = []
+
     def missing(self, cards):
         """Check if the player is missing any of the cards in the list.
         If it is missing any of the cards, return the name of that card.
@@ -179,6 +184,7 @@ class Player():
         else:
             for card in cards:
                 self.give(card)
+
 
 class Game():
     def __init__(self):
@@ -224,12 +230,8 @@ class Game():
 
         # setup players
         for player in self.players:
-            player.hand.extend(self.deck.draw(4))  # deal player hands
-            # move camels from hand to herd
-            if "camel" in player.hand:
-                N = player.hand.count("camel")
-                player.herd.extend(player.hand.take("camel", N))
-            player.tokens = []                     # reset player tokens
+            player.reset()
+            player.give(self.deck.draw(4))  # deal player hands
 
     def check_for_game_over(self):
         # has the market run out of cards?
@@ -303,15 +305,17 @@ class Game():
 
     def sell(self, player, goods, amount):
         if amount == "all":
-            amount = player.hand.count(goods)
+            amount = player.count(goods)
         if goods == "camel":
             raise Exception("You can't sell camels")
         if player.missing(goods):
             raise Exception(f"You don't have any {goods} to sell.")
         if amount == 0:
             raise Exception("You can't sell zero goods")
-        if amount > player.hand.count(goods):
+        if amount > player.count(goods):
             raise Exception(f"You don't have {amount} {goods} to sell.")
+        if goods in ("diamond", "gold", "silver") and amount < 2:
+            raise Exception(f"You can't sell less than 2 {goods}")
 
         # remove the cards from the player's hand
         player.hand.take(goods, amount)
@@ -354,22 +358,17 @@ class Game():
                             "this trade")
 
         # take the cards out of the player's hand (or herd, if camel)
-        for card in player_cards:
-            # TODO: make a Player.take method which chooses herd or hand
-            if card == "camel":
-                player.herd.take(card)
-            else:
-                player.hand.take(card)
+        player.take(player_cards)
         # do the market trade
         self.marketplace.trade(player_cards, market_cards)
-        # place market cards in player hand
-        player.hand.extend(market_cards)
+        # give market cards to player
+        player.give(market_cards)
 
     def take_camels(self, player):
         if self.marketplace.count("camel") == 0:
             raise Exception("There are no camels in the marketplace. Try "
                             "another action.")
-        player.herd.extend(self.marketplace.take_camels())
+        player.give(self.marketplace.take_camels())
         self.refill_marketplace()
 
     def player_turn(self):
@@ -409,28 +408,36 @@ class Game():
                 response = self.player_turn()  # play out player turn
             self.current_player += 1  # increment current player
 
+        print("END OF THE ROUND!")
         # after round has finished,
         # award the largest herd token
         player1_herd_size = len(self.player1.herd)
         player2_herd_size = len(self.player2.herd)
         if player1_herd_size > player2_herd_size:
+            print("Player 1 has the largest herd and gets 5 points")
             self.player1.tokens.append(Token("largest_herd", 5))
+        else:
+            print("Player 2 has the largest herd and gets 5 points")
+            self.player2.tokens.append(Token("largest_herd", 5))
 
         # count token points
+        # TODO: Make a Player.points method
         player1_points = sum(token.value for token in self.player1.tokens)
         player2_points = sum(token.value for token in self.player2.tokens)
+        print(f"{self.player1.name} has {player1_points} points")
+        print(f"{self.player2.name} has {player2_points} points")
 
         # award victory points
         if player1_points > player2_points:
             self.player1.victory_points += 1
-            return f"{self.player1.name} wins this round."
+            print(f"{self.player1.name} wins this round.")
         elif player1_points < player2_points:
             self.player2.victory_points += 1
-            return f"{self.player2.name} wins this round."
+            print(f"{self.player2.name} wins this round.")
         else:
             self.player1.victory_points += 1
             self.player2.victory_points += 1
-            return f"It's a draw! Both players get a victory point."
+            print(f"It's a draw! Both players get a victory point.")
 
     def play_game(self):
         print("ROUND 1!")
@@ -474,11 +481,11 @@ class Game():
         return "\n".join(strings)
 
 game = Game()
-game.setup_round()
-#game.play_game()
-p = game.player1
-p.herd.extend(["camel"]*10)
-print(p.hand, "\n", p.herd)
+#game.setup_round()
+game.play_game()
+#p = game.player1
+#p.herd.extend(["camel"]*10)
+#print(p.hand, "\n", p.herd)
 
 """ TODO:
     - implement take_camels method for game.
