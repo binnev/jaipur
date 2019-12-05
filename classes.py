@@ -124,10 +124,8 @@ class Marketplace(Deck):
         If it is missing any of the cards, return the name of that card.
         If the marketplace has all the cards, return False.
         Used to check that trades will go through. """
-        # single card (string) passed
-        if isinstance(cards, str):
-            return False if cards in self else cards
-        # list of cards passed
+        # convert single string to list of strings
+        cards = [cards] if isinstance(cards, str) else cards
         counts = {card: cards.count(card) for card in cards}
         for card, amount in counts.items():
             if self.count(card) < amount:
@@ -148,18 +146,31 @@ class Player():
         If it is missing any of the cards, return the name of that card.
         If the player has all the cards, return False.
         Used to check that trades will go through"""
-        # single card (string) passed
-        if isinstance(cards, str):
-            location = self.herd if cards == "camel" else self.hand
-            return False if cards in location else cards
-        # list of cards passed
+        # convert single string to list of strings
+        cards = [cards] if isinstance(cards, str) else cards
         counts = {card: cards.count(card) for card in cards}
         for card, amount in counts.items():
-            # differentiate between camels and goods
-            location = self.herd if card == "camel" else self.hand
-            if location.count(card) < amount:
+            if self.count(card) < amount:
                 return card
         return False
+
+    def count(self, card):
+        """Count how many the player has of a single resource card. Checks
+        player herd if card is "camel"; checks hand otherwise. """
+        return (self.herd if card == "camel" else self.hand).count(card)
+
+    def take(self, cards):
+        """Take cards from the player's hand or herd, depending on the card
+        type. Return those cards as a list of strings.
+        The input can be a single card (string) or a list of strings."""
+        if isinstance(cards, str):
+            if cards == "camel":
+                return self.herd.take(cards)
+            else:
+                return self.hand.take(cards)
+        else:
+            return [self.take(card).pop() for card in cards]
+
 
 class Game():
     def __init__(self):
@@ -455,7 +466,11 @@ class Game():
         return "\n".join(strings)
 
 game = Game()
-game.play_game()
+game.setup_round()
+#game.play_game()
+p = game.player1
+p.herd.extend(["camel"]*10)
+print(p.hand, "\n", p.herd)
 
 """ TODO:
     - implement take_camels method for game.
