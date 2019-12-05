@@ -96,7 +96,8 @@ class Marketplace(Deck):
     Needs to keep track of empty spaces and/or preserve the order.
     """
     def __init__(self, list_of_5_cards):
-        list.__init__(self, list_of_5_cards)
+        super().__init__()
+        self.extend(list_of_5_cards)
 
     def swap(self, player_card, market_card):
         """Swap one player card for one market card. Illegal move. Intended for
@@ -108,47 +109,29 @@ class Marketplace(Deck):
         return out
 
     def trade(self, player_cards, market_cards):
-        # check if trade is possible
-        if len(player_cards) != len(market_cards):
-            raise Exception("The number of player cards doesn't match the "
-                            "number of market cards for trade.")
-        if len(player_cards) == 1:
-            raise Exception("You can't trade less than 2 cards.")
-        if "camel" in market_cards:
-            raise Exception("You can't trade for camels in the market")
-        # check if the requested market_cards are all there
-        counts = {card: market_cards.count(card) for card in market_cards}
-        for card, amount in counts.items():
-            if self.count(card) < amount:
-                raise Exception(f"There are not enough {card} cards in the "
-                                "marketplace for this trade")
-
+        """Swap several player cards for several marketplace cards"""
         # start swapping
         out = []
         for player_card, market_card in zip(player_cards, market_cards):
             out.append(self.swap(player_card, market_card))
-
         return out
 
     def take_camels(self):
-        if "camel" not in self:
-            raise IndexError("No camels in the marketplace")
-
         return self.take("camel", self.count("camel"))
 
 
 class Player():
     def __init__(self, name):
         self.name = name
-        self.hand = Deck(empty=True)
+        self.hand = Deck()
         self.tokens = []
         self.victory_points = 0
-        self.herd = Deck(empty=True)
+        self.herd = Deck()
 
 
 class Game():
     def __init__(self):
-
+        """Setup actions at the very beginning of the game"""
         # create players
         self.player1 = Player(name="Player 1")
         self.player2 = Player(name="Player 2")
@@ -156,7 +139,7 @@ class Game():
         self.current_player = 0
 
     def setup_round(self):
-
+        """Setup actions at the start of each round"""
         # create token piles
         # populate tokens dictionary
         self.resource_tokens = {"diamond": [5, 5, 5, 7, 7],
@@ -180,7 +163,7 @@ class Game():
             self.bonus_tokens[key].shuffle()
 
         # create deck
-        self.deck = Deck()
+        self.deck = Deck(default=True)
         self.deck.shuffle()
 
         # create marketplace/river (always start with 3 camels)
@@ -190,7 +173,7 @@ class Game():
 
         # setup players
         for player in self.players:
-            player.hand.extend(self.deck.draw(4))  # deal player hands
+#            player.hand.extend(self.deck.draw(4))  # deal player hands
             # move camels from hand to herd
             if "camel" in player.hand:
                 N = player.hand.count("camel")
@@ -201,12 +184,10 @@ class Game():
         # has the market run out of cards?
         if len(self.deck) == 0:
             return True
-
         # are three or more resource tokens depleted?
         stack_lengths = [len(stack) for stack in self.resource_tokens.values()]
         if stack_lengths.count(0) >= 3:
             return True
-
         return False
 
     def prompt_player_turn(self, player):
@@ -246,12 +227,16 @@ class Game():
         else:
             raise Exception("unrecognised action!")
 
+    def refill_marketplace(self):
+        while len(self.marketplace) < 5:
+            self.marketplace.extend(self.deck.draw())
+            if len(self.deck) == 0:
+                break
+
     def buy(self, player, card):
-        # TODO: check player hand size.
         # take card from marketplace into player hand
         player.hand.extend(self.marketplace.take(card))
-        # refill marketplace from deck
-        self.marketplace.extend(self.deck.draw())
+        self.refill_marketplace()
 
     def sell(self, player, goods, amount):
         # resolve amount (int vs. "all")
@@ -260,15 +245,10 @@ class Game():
         # remove the cards from the player's hand
         player.hand.take(goods, amount)
         # take tokens from the token pile and add to player tokens
-        try:
-            tokens = self.resource_tokens[goods].draw(amount)
-        except IndexError:  # if there are no more tokens left
-            pass            # don't worry about it
-        finally:
-            player.tokens.extend(tokens)
+        player.tokens.extend(self.resource_tokens[goods].draw(amount))
 
     def trade(self, player, player_cards, market_cards):
-        # take the cards out of the player's hand
+        # take the cards out of the player's hand (or herd, if camel)
         for card in player_cards:
             if card == "camel":
                 player.herd.take(card)
@@ -280,11 +260,8 @@ class Game():
         player.hand.extend(market_cards)
 
     def take_camels(self, player):
-        n_camels = self.marketplace.count("camel")
-        # take camels into player herd
         player.herd.extend(self.marketplace.take_camels())
-        # refill marketplace
-        self.marketplace.extend(self.deck.draw(n_camels))
+        self.refill_marketplace()
 
     def player_turn(self):
         # get current player
@@ -294,21 +271,60 @@ class Game():
         response = self.prompt_player_turn(player)
         if response[0] == "buy":
             action, goods = response
+            # check player hand size.
+            if len(player.hand) >= 7:
+                return ("You already have 7 cards in your hand. "
+                        "You can't buy.")
+            # you can't buy a camel
+            if goods == "camel":
+                return ("You can't buy a camel. Use the 'camels' action "
+                        "instead.")
             self.buy(player, goods)
+            return True  # turn satisfactorily resolved
         if response[0] == "trade":
             action, player_cards, market_cards = response
+            # check if trade is possible
+            if len(player_cards) != len(market_cards):
+                return ("The number of player cards doesn't match the "
+                        "number of market cards for trade.")
+            if len(player_cards) == 1:
+                return ("You can't trade less than 2 cards.")
+            if "camel" in market_cards:
+                return ("You can't trade for camels in the market")
+            # check if the requested market_cards are all there
+            counts = {card: market_cards.count(card) for card in market_cards}
+            for card, amount in counts.items():
+                if self.marketplace.count(card) < amount:
+                    return (f"There are not enough {card} cards in the "
+                            "marketplace for this trade")
+            # check hand size
+            non_camel_cards = [c for c in player_cards if c != "camel"]
+            if len(player.hand) - len(non_camel_cards) + len(market_cards) > 7:
+                raise Exception("Your hand will be greater than 7 cards after "
+                                "this trade")
+
             self.trade(player, player_cards, market_cards)
+            return True
         if response[0] == "sell":
             action, goods, amount = response
             self.sell(player, goods, amount)
+            return True
         if response[0] == "camels":
+            if self.marketplace.count("camel") == 0:
+                return ("There are no camels in the marketplace. Try another "
+                        "action.")
             self.take_camels(player)
+            return True
 
     def play_round(self):
         self.setup_round()
         while self.check_for_game_over is not True:
-            print(self)               # print the board
-            self.player_turn()        # play out player turn
+            response = ""
+            while response is not True:
+                print(self)  # print the board
+                if response:
+                    print(">"*90+"\n"+response+"\n"+">"*90)
+                response = self.player_turn()  # play out player turn
             self.current_player += 1  # increment current player
 
         # after round has finished,
@@ -374,8 +390,8 @@ class Game():
                    ]
         return "\n".join(strings)
 
-#game = Game()
-#game.play_game()
+game = Game()
+game.play_game()
 
 """ TODO:
     - implement take_camels method for game.
