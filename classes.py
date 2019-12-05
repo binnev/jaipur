@@ -28,19 +28,25 @@ class Token():
 
 
 class Deck(list):
-    def __init__(self, diamond=6, gold=6, silver=6, cloth=8, spice=8,
-                 leather=10, camel=11, empty=False):
-        if not empty:
-            contents = (["diamond"] * diamond
-                     + ["silver"] * silver
-                     + ["gold"] * gold
-                     + ["cloth"] * cloth
-                     + ["spice"] * spice
-                     + ["leather"] * leather
-                     + ["camel"] * camel)
+    def __init__(self, default=False, **kwargs):
+        # default deck for Jaipur
+        if default:
+            contents = {"diamond": 6,
+                        "gold": 6,
+                        "silver": 6,
+                        "cloth": 8,
+                        "spice": 8,
+                        "leather": 10,
+                        "camel": 11}
         else:
-            contents = []
-        super().__init__(contents)
+            contents = {}
+        # update with any specific requests from kwargs
+        contents.update(kwargs)
+        # convert to list
+        temp = []
+        for goods, amount in contents.items():
+            temp.extend([goods] * amount)
+        super().__init__(temp)
 
     def shuffle(self):
         shuffle(self)
