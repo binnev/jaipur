@@ -119,6 +119,21 @@ class Marketplace(Deck):
     def take_camels(self):
         return self.take("camel", self.count("camel"))
 
+    def missing(self, cards):
+        """Check if the marketplace is missing any of the cards in the list.
+        If it is missing any of the cards, return the name of that card.
+        If the marketplace has all the cards, return False.
+        Used to check that trades will go through. """
+        # single card (string) passed
+        if isinstance(cards, str):
+            return False if cards in self else cards
+        # list of cards passed
+        counts = {card: cards.count(card) for card in cards}
+        for card, amount in counts.items():
+            if self.count(card) < amount:
+                return card
+        return False
+
 
 class Player():
     def __init__(self, name):
@@ -128,6 +143,23 @@ class Player():
         self.victory_points = 0
         self.herd = Deck()
 
+    def missing(self, cards):
+        """Check if the player is missing any of the cards in the list.
+        If it is missing any of the cards, return the name of that card.
+        If the player has all the cards, return False.
+        Used to check that trades will go through"""
+        # single card (string) passed
+        if isinstance(cards, str):
+            location = self.herd if cards == "camel" else self.hand
+            return False if cards in location else cards
+        # list of cards passed
+        counts = {card: cards.count(card) for card in cards}
+        for card, amount in counts.items():
+            # differentiate between camels and goods
+            location = self.herd if card == "camel" else self.hand
+            if location.count(card) < amount:
+                return card
+        return False
 
 class Game():
     def __init__(self):
@@ -173,7 +205,7 @@ class Game():
 
         # setup players
         for player in self.players:
-#            player.hand.extend(self.deck.draw(4))  # deal player hands
+            player.hand.extend(self.deck.draw(4))  # deal player hands
             # move camels from hand to herd
             if "camel" in player.hand:
                 N = player.hand.count("camel")
@@ -234,22 +266,77 @@ class Game():
                 break
 
     def buy(self, player, card):
+        # player hand size can't exceed 7
+        if len(player.hand) >= 7:
+            raise Exception("You already have 7 cards in your hand. "
+                            "You can't buy.")
+        # you can't buy a camel
+        if card == "camel":
+            raise Exception("You can't buy a camel. Use the 'camels' action "
+                            "instead.")
+        # can't buy stuff that's not in the marketplace
+        if self.marketplace.missing(card):
+            raise Exception(f"There is no {card} in the marketplace.")
+
         # take card from marketplace into player hand
         player.hand.extend(self.marketplace.take(card))
         self.refill_marketplace()
 
     def sell(self, player, goods, amount):
-        # resolve amount (int vs. "all")
         if amount == "all":
             amount = player.hand.count(goods)
+        if goods == "camel":
+            raise Exception("You can't sell camels")
+        if player.missing(goods):
+            raise Exception(f"You don't have any {goods} to sell.")
+        if amount == 0:
+            raise Exception("You can't sell zero goods")
+        if amount > player.hand.count(goods):
+            raise Exception(f"You don't have {amount} {goods} to sell.")
+
         # remove the cards from the player's hand
         player.hand.take(goods, amount)
         # take tokens from the token pile and add to player tokens
         player.tokens.extend(self.resource_tokens[goods].draw(amount))
 
+        # handle combo tokens for large trades
+        if amount == 3:
+            player.tokens.extend(self.bonus_tokens["combo3"].draw())
+        if amount == 4:
+            player.tokens.extend(self.bonus_tokens["combo4"].draw())
+        if amount >= 5:
+            player.tokens.extend(self.bonus_tokens["combo5"].draw())
+
     def trade(self, player, player_cards, market_cards):
+        # check card lists are equal length
+        if len(player_cards) != len(market_cards):
+            raise Exception("The number of player cards doesn't match the "
+                            "number of market cards for trade.")
+        # don't allow single-card trades
+        if len(player_cards) == 1:
+            raise Exception("You can't trade less than 2 cards.")
+        # don't allow trading for marketplace camels
+        if "camel" in market_cards:
+            raise Exception("You can't trade for camels in the market")
+        # check the player has all the cards they want to trade in
+        card = player.missing(player_cards)
+        if card:
+            raise Exception(f"You don't have enough {card} to make this "
+                            "trade.")
+        # check if the requested market_cards are all there
+        card = self.marketplace.missing(market_cards)
+        if card:
+            raise Exception(f"There are not enough {card} cards in the "
+                            "marketplace for this trade")
+        # check hand size
+        non_camel_cards = [c for c in player_cards if c != "camel"]
+        if len(player.hand) - len(non_camel_cards) + len(market_cards) > 7:
+            raise Exception("Your hand will be greater than 7 cards after "
+                            "this trade")
+
         # take the cards out of the player's hand (or herd, if camel)
         for card in player_cards:
+            # TODO: make a Player.take method which chooses herd or hand
             if card == "camel":
                 player.herd.take(card)
             else:
@@ -260,6 +347,9 @@ class Game():
         player.hand.extend(market_cards)
 
     def take_camels(self, player):
+        if self.marketplace.count("camel") == 0:
+            raise Exception("There are no camels in the marketplace. Try "
+                            "another action.")
         player.herd.extend(self.marketplace.take_camels())
         self.refill_marketplace()
 
@@ -268,57 +358,30 @@ class Game():
         player = self.players[self.current_player % 2]
 
         # prompt player for action
-        response = self.prompt_player_turn(player)
-        if response[0] == "buy":
-            action, goods = response
-            # check player hand size.
-            if len(player.hand) >= 7:
-                return ("You already have 7 cards in your hand. "
-                        "You can't buy.")
-            # you can't buy a camel
-            if goods == "camel":
-                return ("You can't buy a camel. Use the 'camels' action "
-                        "instead.")
-            self.buy(player, goods)
-            return True  # turn satisfactorily resolved
-        if response[0] == "trade":
-            action, player_cards, market_cards = response
-            # check if trade is possible
-            if len(player_cards) != len(market_cards):
-                return ("The number of player cards doesn't match the "
-                        "number of market cards for trade.")
-            if len(player_cards) == 1:
-                return ("You can't trade less than 2 cards.")
-            if "camel" in market_cards:
-                return ("You can't trade for camels in the market")
-            # check if the requested market_cards are all there
-            counts = {card: market_cards.count(card) for card in market_cards}
-            for card, amount in counts.items():
-                if self.marketplace.count(card) < amount:
-                    return (f"There are not enough {card} cards in the "
-                            "marketplace for this trade")
-            # check hand size
-            non_camel_cards = [c for c in player_cards if c != "camel"]
-            if len(player.hand) - len(non_camel_cards) + len(market_cards) > 7:
-                raise Exception("Your hand will be greater than 7 cards after "
-                                "this trade")
+        # TODO: keep prompting until receive a valid response
+        action, *details = self.prompt_player_turn(player)
 
-            self.trade(player, player_cards, market_cards)
-            return True
-        if response[0] == "sell":
-            action, goods, amount = response
-            self.sell(player, goods, amount)
-            return True
-        if response[0] == "camels":
-            if self.marketplace.count("camel") == 0:
-                return ("There are no camels in the marketplace. Try another "
-                        "action.")
-            self.take_camels(player)
-            return True
+        if action == "buy":
+            goods, = details
+            func, arguments = self.buy, (player, goods)
+        if action == "trade":
+            player_cards, market_cards = details
+            func, arguments = self.trade, (player, player_cards, market_cards)
+        if action == "sell":
+            goods, amount = details
+            func, arguments = self.sell, (player, goods, amount)
+        if action == "camels":
+            func, arguments = self.take_camels, (player,)
+
+        try:
+            func(*arguments)
+        except Exception as e:
+            return str(e)
+        return True  # turn satisfactorily resolved
 
     def play_round(self):
         self.setup_round()
-        while self.check_for_game_over is not True:
+        while self.check_for_game_over() is not True:
             response = ""
             while response is not True:
                 print(self)  # print the board
@@ -332,7 +395,7 @@ class Game():
         player1_herd_size = len(self.player1.herd)
         player2_herd_size = len(self.player2.herd)
         if player1_herd_size > player2_herd_size:
-            player1.tokens.append(Token("largest_herd", 5))
+            self.player1.tokens.append(Token("largest_herd", 5))
 
         # count token points
         player1_points = sum(token.value for token in self.player1.tokens)
@@ -376,17 +439,18 @@ class Game():
 
         strings = ["="*90,
                    f"{self.player1.name}",
-                   f"\thand: {self.player1.hand}",
+                   f"\thand: {sorted(self.player1.hand)}",
                    f"\ttokens: {self.player1.tokens}",
-                   f"\therd: {len(self.player1.herd)}",
+                   f"\therd: {'*'*len(self.player1.herd)}",
                    f"MARKETPLACE: {self.marketplace}",
+                   f"DECK: {'*'*len(self.deck)}",
                    "TOKENS:",
                    "\t"+diamond, "\t"+gold, "\t"+silver, "\t"+spice,
                    "\t"+cloth, "\t"+leather,
                    f"{self.player2.name}",
-                   f"\thand: {self.player2.hand}",
+                   f"\thand: {sorted(self.player2.hand)}",
                    f"\ttokens: {self.player2.tokens}",
-                   f"\therd: {len(self.player2.herd)}",
+                   f"\therd: {'*'*len(self.player2.herd)}",
                    ]
         return "\n".join(strings)
 
