@@ -27,7 +27,7 @@ class TestToken(unittest.TestCase):
 class TestDeck(unittest.TestCase):
 
     def setUp(self):
-        self.deck = Deck()
+        self.deck = Deck(default=True)
         self.initial_deck_len = len(self.deck)
 
     def tearDown(self):
@@ -45,27 +45,50 @@ class TestDeck(unittest.TestCase):
         self.assertEqual(len(self.deck), self.initial_deck_len-3)
 
     def test_draw_too_many(self):
-        with self.assertRaises(IndexError):
-            self.deck.draw(100)  # there should only be 55 cards by default
+        # draw exactly the number of cards left in the deck
+        self.deck = Deck(camel=5)
+        drawn_cards = self.deck.draw(5)
+        self.assertEqual(drawn_cards, ["camel"]*5)
+        self.assertEqual(len(self.deck), 0)
 
-    def test_draw_specific(self):
-        drawn_cards = self.deck.draw_specific("camel")
+        # drawing too many cards should just return available cards
+        self.deck = Deck(camel=5)
+        drawn_cards = self.deck.draw(10)
+        self.assertEqual(drawn_cards, ["camel"]*5)
+        self.assertEqual(len(self.deck), 0)
+
+        # draw from an empty deck should return empty list
+        self.deck = Deck()
+        drawn_cards = self.deck.draw()
+        self.assertEqual(drawn_cards, [])
+        self.assertEqual(len(self.deck), 0)
+
+        self.deck = Deck()
+        drawn_cards = self.deck.draw(10)
+        self.assertEqual(drawn_cards, [])
+        self.assertEqual(len(self.deck), 0)
+
+    def test_take(self):
+        drawn_cards = self.deck.take("camel")
         self.assertEqual(len(drawn_cards), 1)
         self.assertEqual(drawn_cards, ["camel"])
 
-    def test_draw_specific_too_many(self):
+    def test_take_too_many(self):
         with self.assertRaises(ValueError):
-            self.deck.draw_specific("camel", 100)
+            self.deck.take("camel", 100)
 
-    def test_draw_specific_when_card_not_present(self):
+    def test_take_when_card_not_present(self):
         # try to draw a card that isn't in the deck
         with self.assertRaises(ValueError):
-             self.deck.draw_specific("magic carpet")
+             self.deck.take("magic carpet")
 
-    def test_draw_specific_multiple(self):
-        drawn_cards = self.deck.draw_specific("silver", 5)
+    def test_take_multiple(self):
+        drawn_cards = self.deck.take("silver", 5)
+        # check correct number and type of drawn cards
         self.assertEqual(len(drawn_cards), 5)
         self.assertEqual(drawn_cards, ["silver"]*5)
+        # check deck reduced in size correctly
+        self.assertEqual(len(self.deck), self.initial_deck_len-5)
 
     def test_shuffle(self):
         unshuffled_deck = self.deck.copy()

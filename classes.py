@@ -53,7 +53,14 @@ class Deck(list):
 
     def draw(self, number=1):
         """Draw the next card(s)"""
-        return [self.pop() for __ in range(number)]
+        drawn_cards = []
+        try:
+            for __ in range(number):
+                drawn_cards.append(self.pop())
+        except IndexError:
+            pass
+        finally:
+            return drawn_cards
 
     def take(self, card, number=1):
         """Take a card by name"""
@@ -367,8 +374,8 @@ class Game():
                    ]
         return "\n".join(strings)
 
-game = Game()
-game.play_game()
+#game = Game()
+#game.play_game()
 
 """ TODO:
     - implement take_camels method for game.
