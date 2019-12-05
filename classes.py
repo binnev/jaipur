@@ -251,7 +251,9 @@ class Game():
                    "\t3) 'sell cloth' --> sell all your cloth. You can specify a number to sell: 'sell 2 cloth'\n"
                    "\t4) 'camels' --> take all the camels\n"
                    )
-        inp = input(prompt=message).strip()
+        return input(prompt=message).strip()
+
+    def parse_player_input(self, player, inp):
         if inp == "camels":
             return inp,
 
@@ -377,7 +379,8 @@ class Game():
 
         # prompt player for action
         # TODO: keep prompting until receive a valid response
-        action, *details = self.prompt_player_turn(player)
+        inp = self.prompt_player_turn(player)
+        action, *details = self.parse_player_input(player, inp)
 
         if action == "buy":
             goods, = details
