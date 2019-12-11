@@ -1,5 +1,6 @@
 import unittest
 from classes import Token, Deck, parse_player_input, parse_card_group
+from exceptions import InvalidInputError, IllegalMoveError
 
 class TestToken(unittest.TestCase):
 
@@ -126,6 +127,27 @@ class Test_parse_player_input(unittest.TestCase):
         action, *details = parse_player_input(inp)
         self.assertEqual(action, "buy")
 
+    def test_invalid_action_names(self):
+        with self.assertRaises(InvalidInputError):
+            inp = "tradeeeeeee camel camel leather for diamond gold"
+            action, *details = parse_player_input(inp)
+
+        with self.assertRaises(InvalidInputError):
+            inp = "trad ecamel camel leather for diamond gold"
+            action, *details = parse_player_input(inp)
+
+        with self.assertRaises(InvalidInputError):
+            inp = "flog carpets"
+            action, *details = parse_player_input(inp)
+
+        with self.assertRaises(InvalidInputError):
+            inp = "selllll stuff"
+            action, *details = parse_player_input(inp)
+
+        with self.assertRaises(InvalidInputError):
+            inp = "buyyyyyyy camels"
+            action, *details = parse_player_input(inp)
+
     def test_camels(self):
         # intended usage
         inp = "camels"
@@ -184,23 +206,44 @@ class Test_parse_player_input(unittest.TestCase):
         self.assertEqual(amount, 2)
 
         # trying to sell multiple card types: should raise exception
-        with self.assertRaises(Exception):
+        with self.assertRaises(IllegalMoveError):
             inp = "sell 2 gold 4 silver"
             action, goods, amount = parse_player_input(inp)
-        with self.assertRaises(Exception):
+        with self.assertRaises(IllegalMoveError):
             inp = "sell gold silver"
             action, goods, amount = parse_player_input(inp)
-        with self.assertRaises(Exception):
+        with self.assertRaises(IllegalMoveError):
             inp = "sell gold 3 silver"
             action, goods, amount = parse_player_input(inp)
 
         # wrong order: should treat number as second card group and raise
         # exception
-        with self.assertRaises(Exception):
+        with self.assertRaises(IllegalMoveError):
             inp = "sell gold 3"
             action, goods, amount = parse_player_input(inp)
 
-    def test_trade_intended_usage(self):
+    def test_buy(self):
+        # intended usage
+        inp = "buy gold"
+        action, card = parse_player_input(inp)
+        self.assertEqual(card, "gold")
+
+        # buying camels is illegal, but this function should parse it
+        inp = "buy camel"
+        action, card = parse_player_input(inp)
+        self.assertEqual(card, "camel")
+
+        # trying to buy more than one card should raise error
+        with self.assertRaises(IllegalMoveError):
+            inp = "buy gold silver"
+            action, card = parse_player_input(inp)
+
+        # trying to buy more than one of a single card should raise error
+        with self.assertRaises(IllegalMoveError):
+            inp = "buy 2 camel"
+            action, card = parse_player_input(inp)
+
+    def test_trade(self):
         # no numbers
         inp = "trade camel camel leather for diamond gold"
         action, player_cards, market_cards = parse_player_input(inp)

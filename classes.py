@@ -1,4 +1,5 @@
 from random import shuffle
+from exceptions import InvalidInputError, IllegalMoveError
 import re
 
 allowed_token_names = ("diamond", "silver", "gold", "cloth", "spice",
@@ -253,35 +254,6 @@ class Game():
                    )
         return input(prompt=message).strip()
 
-    def parse_player_input(self, player, inp):
-        if inp == "camels":
-            return inp,
-
-        action, inp = inp.split(" ", maxsplit=1)
-
-        if action == "buy":
-            goods = inp.strip()  # the rest of the string is the goods name
-            return action, goods
-        elif action == "trade":
-            player_cards, market_cards = inp.split("for")
-            # use regexp to detect "2 camel 1 spice" or "camel camel spice"
-            # maybe start with the latter and then add the regexp functionality
-            # later
-            player_cards = player_cards.strip().split(" ")
-            market_cards = market_cards.strip().split(" ")
-            return action, player_cards, market_cards
-        elif action == "sell":
-            goods = inp.strip().split(" ")
-            if len(goods) > 1:  # if the player has specified number of goods
-                goods, amount = goods
-                amount = int(amount)
-            else:
-                goods, = goods
-                amount = "all"
-            return action, goods, amount
-        else:
-            raise Exception("unrecognised action!")
-
     def refill_marketplace(self):
         while len(self.marketplace) < 5:
             self.marketplace.extend(self.deck.draw())
@@ -291,15 +263,15 @@ class Game():
     def buy(self, player, card):
         # player hand size can't exceed 7
         if len(player.hand) >= 7:
-            raise Exception("You already have 7 cards in your hand. "
-                            "You can't buy.")
+            raise IllegalMoveError("You already have 7 cards in your hand. "
+                                   "You can't buy.")
         # you can't buy a camel
         if card == "camel":
-            raise Exception("You can't buy a camel. Use the 'camels' action "
-                            "instead.")
+            raise IllegalMoveError("You can't buy a camel. Use the 'camels' action "
+                                   "instead.")
         # can't buy stuff that's not in the marketplace
         if self.marketplace.missing(card):
-            raise Exception(f"There is no {card} in the marketplace.")
+            raise IllegalMoveError(f"There is no {card} in the marketplace.")
 
         # take card from marketplace into player hand
         player.hand.extend(self.marketplace.take(card))
@@ -309,15 +281,15 @@ class Game():
         if amount == "all":
             amount = player.count(goods)
         if goods == "camel":
-            raise Exception("You can't sell camels")
+            raise IllegalMoveError("You can't sell camels")
         if player.missing(goods):
-            raise Exception(f"You don't have any {goods} to sell.")
+            raise IllegalMoveError(f"You don't have any {goods} to sell.")
         if amount == 0:
-            raise Exception("You can't sell zero goods")
+            raise IllegalMoveError("You can't sell zero goods")
         if amount > player.count(goods):
-            raise Exception(f"You don't have {amount} {goods} to sell.")
+            raise IllegalMoveError(f"You don't have {amount} {goods} to sell.")
         if goods in ("diamond", "gold", "silver") and amount < 2:
-            raise Exception(f"You can't sell less than 2 {goods}")
+            raise IllegalMoveError(f"You can't sell less than 2 {goods}")
 
         # remove the cards from the player's hand
         player.hand.take(goods, amount)
@@ -335,29 +307,29 @@ class Game():
     def trade(self, player, player_cards, market_cards):
         # check card lists are equal length
         if len(player_cards) != len(market_cards):
-            raise Exception("The number of player cards doesn't match the "
-                            "number of market cards for trade.")
+            raise IllegalMoveError("The number of player cards doesn't match "
+                                   "the number of market cards for trade.")
         # don't allow single-card trades
         if len(player_cards) == 1:
-            raise Exception("You can't trade less than 2 cards.")
+            raise IllegalMoveError("You can't trade less than 2 cards.")
         # don't allow trading for marketplace camels
         if "camel" in market_cards:
-            raise Exception("You can't trade for camels in the market")
+            raise IllegalMoveError("You can't trade for camels in the market")
         # check the player has all the cards they want to trade in
         card = player.missing(player_cards)
         if card:
-            raise Exception(f"You don't have enough {card} to make this "
-                            "trade.")
+            raise IllegalMoveError(f"You don't have enough {card} to make this"
+                                   " trade.")
         # check if the requested market_cards are all there
         card = self.marketplace.missing(market_cards)
         if card:
-            raise Exception(f"There are not enough {card} cards in the "
-                            "marketplace for this trade")
+            raise IllegalMoveError(f"There are not enough {card} cards in the "
+                                   "marketplace for this trade")
         # check hand size
         non_camel_cards = [c for c in player_cards if c != "camel"]
         if len(player.hand) - len(non_camel_cards) + len(market_cards) > 7:
-            raise Exception("Your hand will be greater than 7 cards after "
-                            "this trade")
+            raise IllegalMoveError("Your hand will be greater than 7 cards "
+                                   "after this trade")
 
         # take the cards out of the player's hand (or herd, if camel)
         player.take(player_cards)
@@ -368,8 +340,8 @@ class Game():
 
     def take_camels(self, player):
         if self.marketplace.count("camel") == 0:
-            raise Exception("There are no camels in the marketplace. Try "
-                            "another action.")
+            raise IllegalMoveError("There are no camels in the marketplace. "
+                                   "Try another action.")
         player.give(self.marketplace.take_camels())
         self.refill_marketplace()
 
@@ -378,26 +350,25 @@ class Game():
         player = self.players[self.current_player % 2]
 
         # prompt player for action
-        # TODO: keep prompting until receive a valid response
         inp = self.prompt_player_turn(player)
-        action, *details = self.parse_player_input(player, inp)
+        action, *details = parse_player_input(inp)
 
+        # make arrangements for the player's request
         if action == "buy":
             goods, = details
-            func, arguments = self.buy, (player, goods)
-        if action == "trade":
+            self.buy(player, goods)
+        elif action == "trade":
             player_cards, market_cards = details
-            func, arguments = self.trade, (player, player_cards, market_cards)
-        if action == "sell":
+            self.trade(player, player_cards, market_cards)
+        elif action == "sell":
             goods, amount = details
-            func, arguments = self.sell, (player, goods, amount)
-        if action == "camels":
-            func, arguments = self.take_camels, (player,)
+            self.sell(player, goods, amount)
+        elif action == "camels":
+            self.take_camels(player)
+        else:
+            raise InvalidInputError(f"Unrecognised input: {inp}")
 
-        try:
-            func(*arguments)
-        except Exception as e:
-            return str(e)
+        # execute player requests
         return True  # turn satisfactorily resolved
 
     def play_round(self):
@@ -408,7 +379,10 @@ class Game():
                 print(self)  # print the board
                 if response:
                     print(">"*90+"\n"+response+"\n"+">"*90)
-                response = self.player_turn()  # play out player turn
+                try:
+                    response = self.player_turn()  # play out player turn
+                except (IllegalMoveError, InvalidInputError) as e:
+                    response = str(e)
             self.current_player += 1  # increment current player
 
         print("END OF THE ROUND!")
@@ -509,14 +483,17 @@ def parse_player_input(inp):
     inp = inp.strip()
     rx_action = r"^(trade|buy|sell|camels)"
     match = re.search(rx_action, inp)
+    generic_error = InvalidInputError(f"Input not recognised: {inp}")
     if not match:
-        return False
+        raise generic_error
     action = match.group()
 
     if action == "trade":
         # capture card groups involved in trade
         rx_trade = r"^trade\s+(.*)\s+for\s+(.*)"
         match = re.search(rx_trade, inp)
+        if not match:
+            raise generic_error
         card_lists = []
         for card_group in match.groups():
             # parse player cards group
@@ -529,28 +506,48 @@ def parse_player_input(inp):
             card_lists.append(out)
         return [action, *card_lists]
 
-    if action == "buy":
-        return "buy",
+    elif action == "buy":
+        rx_buy = r"^buy\s+(.*)"
+        match = re.search(rx_buy, inp)
+        if not match:
+            raise generic_error
+        card_group, = match.groups()
+        cards = parse_card_group(card_group)
+        bad = " ".join(f"{1 if amount is None else amount} {card}"
+                       for card, amount in cards.items())
+        error = IllegalMoveError("You can't buy more than one card type. "
+                                 f"(You are trying to buy {bad})")
+        if len(cards) > 1:
+            raise error
+        (card, amount), = cards.items()
+        if amount not in (None, 1):
+            raise error
+        return action, card
 
-    if action == "sell":
+    elif action == "sell":
         # grab the group of cards to sell from the input string
         rx_sell = r"^sell\s+(.*)"
         match = re.search(rx_sell, inp)
+        if not match:
+            raise generic_error
         card_group, = match.groups()
         # grab the amount and card type
-        sell_cards = parse_card_group(card_group)
-        if len(sell_cards) > 1:
-            bad_sale = [thing for thing in sell_cards.keys()]
-            raise Exception("You can't sell more than one card type. "
-                            f"(You are trying to sell {bad_sale})")
-        (card, amount), = sell_cards.items()
+        cards = parse_card_group(card_group)
+        if len(cards) > 1:
+            bad_sale = [thing for thing in cards.keys()]
+            raise IllegalMoveError("You can't sell more than one card type. "
+                                   f"(You are trying to sell {bad_sale})")
+        (card, amount), = cards.items()
         # if no sale amount specified, set to default: "all"
         if amount is None:
             amount = "all"
         return action, card, amount
 
-    if action == "camels":
+    elif action == "camels":
         return "camels",
+
+    else:
+        raise InvalidInputError(f"Unrecognised action: {inp}")
 
 
 def parse_card_group(string_of_cards):
@@ -563,11 +560,9 @@ def parse_card_group(string_of_cards):
          )
     results = re.findall(rx, inp)
     d = dict()
-    print(f"d = {d}")
     for __, amount, card in results:
         # convert empty strings to None; numeric strings to int
         amount = int(amount) if amount else None
-        print(f"amount = {amount} with type {type(amount)}")
         if card in d:
             # add amount to d[card], handling the case where either d[card] or
             # amount is None
@@ -575,9 +570,8 @@ def parse_card_group(string_of_cards):
                        + (1 if amount is None else amount))
         else:
             d[card] = amount
-        print(f"d = {d}")
-
     return d
 
-#game = Game()
-#game.play_game()
+if __name__ == "__main__":
+    game = Game()
+    game.play_game()
