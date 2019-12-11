@@ -1,5 +1,5 @@
 from random import shuffle
-
+import re
 
 allowed_token_names = ("diamond", "silver", "gold", "cloth", "spice",
                        "leather", "combo3", "combo4", "combo5", "largest_herd",
@@ -483,19 +483,101 @@ class Game():
                    ]
         return "\n".join(strings)
 
-game = Game()
-#game.setup_round()
-game.play_game()
-#p = game.player1
-#p.herd.extend(["camel"]*10)
-#print(p.hand, "\n", p.herd)
+# %%
+inputs = ("buy camels",
+          "bu",
+          "",
+          " ",
+          "sell",
+          "sell gold",
+          "buy ",
+          "buy diamond",
+          "gold sell",
+          "gold buy",
+          " trade",
+          "trade camel  camel      for gold       silver",
+          "trade 1 camel 1 camel for 1 gold 1 silver",
+          "trade 2 camel for gold silver",
+          "trade 2 camel for 1 gold 1 silver",
+          "trade 3 camel for 2 gold silver",
+          "trade 3 camel for 2 gold 1 silver",
+          "trade  3    camel    for  2 gold     1 silver",
+          "trade 3 camel for 2gold1 silver",
+          )
 
-""" TODO:
-    - implement take_camels method for game.
-    - merge actions from Marketplace into Game class
-    - take starting camels from player hand to herd
-    - enforce hand size for players
-    - sort player hand in game print
-    - enforce 2 sale minimum sale for d, g, s
-    - implement combo reward tokens
-    """
+def parse_player_input(inp):
+    inp = inp.strip()
+    rx_action = r"^(trade|buy|sell|camels)"
+    match = re.search(rx_action, inp)
+    if not match:
+        return False
+    action = match.group()
+
+    if action == "trade":
+        # capture card groups involved in trade
+        rx_trade = r"^trade\s+(.*)\s+for\s+(.*)"
+        match = re.search(rx_trade, inp)
+        card_lists = []
+        for card_group in match.groups():
+            # parse player cards group
+            cards = parse_card_group(card_group)
+            # transform into a list of strings
+            out = []
+            for card, amount in cards.items():
+                amount = 1 if amount is None else amount
+                out.extend([card]*amount)
+            card_lists.append(out)
+        return [action, *card_lists]
+
+    if action == "buy":
+        return "buy",
+
+    if action == "sell":
+        # grab the group of cards to sell from the input string
+        rx_sell = r"^sell\s+(.*)"
+        match = re.search(rx_sell, inp)
+        card_group, = match.groups()
+        # grab the amount and card type
+        sell_cards = parse_card_group(card_group)
+        if len(sell_cards) > 1:
+            bad_sale = [thing for thing in sell_cards.keys()]
+            raise Exception("You can't sell more than one card type. "
+                            f"(You are trying to sell {bad_sale})")
+        (card, amount), = sell_cards.items()
+        # if no sale amount specified, set to default: "all"
+        if amount is None:
+            amount = "all"
+        return action, card, amount
+
+    if action == "camels":
+        return "camels",
+
+
+def parse_card_group(string_of_cards):
+    inp = string_of_cards.strip()
+    rx = (
+          r"\b"          # boundary between word and non-word characters
+          r"((\d)+\s+)?"   # optional digit(s) and whitespace(s) (capture)
+          r"(\w+)"       # word (capture)
+          r"\b"          # boundary between word and non-word characters
+         )
+    results = re.findall(rx, inp)
+    d = dict()
+    print(f"d = {d}")
+    for __, amount, card in results:
+        # convert empty strings to None; numeric strings to int
+        amount = int(amount) if amount else None
+        print(f"amount = {amount} with type {type(amount)}")
+        if card in d:
+            # add amount to d[card], handling the case where either d[card] or
+            # amount is None
+            d[card] = ((1 if d[card] is None else d[card])
+                       + (1 if amount is None else amount))
+        else:
+            d[card] = amount
+        print(f"d = {d}")
+
+    return d
+
+#game = Game()
+#game.play_game()

@@ -1,5 +1,5 @@
 import unittest
-from classes import Token, Deck
+from classes import Token, Deck, parse_player_input, parse_card_group
 
 class TestToken(unittest.TestCase):
 
@@ -105,6 +105,191 @@ class TestDeck(unittest.TestCase):
 
         # check that the peeking didn't change the number of cards in the deck
         self.assertEqual(len(self.deck), self.initial_deck_len)
+
+
+class Test_parse_player_input(unittest.TestCase):
+
+    def test_action(self):
+        inp = "trade camel camel leather for diamond gold"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "trade")
+
+        inp = "sell diamond"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "sell")
+
+        inp = "camels"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "camels")
+
+        inp = "buy cloth"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "buy")
+
+    def test_camels(self):
+        # intended usage
+        inp = "camels"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "camels")
+
+        # trailing whitespace
+        inp = "camels        "
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "camels")
+
+        # redundant input after camels
+        inp = "camels and stuff"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "camels")
+
+        # leading whitespace
+        inp = "        camels"
+        action, *details = parse_player_input(inp)
+        self.assertEqual(action, "camels")
+
+    def test_sell(self):
+        # general case -- sell all of a resource
+        inp = "sell gold"
+        action, goods, amount = parse_player_input(inp)
+        self.assertEqual(action, "sell")
+        self.assertEqual(goods, "gold")
+        self.assertEqual(amount, "all")
+
+        # general case with weird whitespace
+        inp = "       sell      gold      "
+        action, goods, amount = parse_player_input(inp)
+        self.assertEqual(action, "sell")
+        self.assertEqual(goods, "gold")
+        self.assertEqual(amount, "all")
+
+        # sell a specific number
+        inp = "sell 2 gold"
+        action, goods, amount = parse_player_input(inp)
+        self.assertEqual(action, "sell")
+        self.assertEqual(goods, "gold")
+        self.assertEqual(amount, 2)
+
+        # sell zero (not legal, but this function should parse it)
+        inp = "sell 0 gold"
+        action, goods, amount = parse_player_input(inp)
+        self.assertEqual(action, "sell")
+        self.assertEqual(goods, "gold")
+        self.assertEqual(amount, 0)
+
+        # sell a specific number with weird whitespace
+        inp = "      sell     2    gold    "
+        action, goods, amount = parse_player_input(inp)
+        self.assertEqual(action, "sell")
+        self.assertEqual(goods, "gold")
+        self.assertEqual(amount, 2)
+
+        # trying to sell multiple card types: should raise exception
+        with self.assertRaises(Exception):
+            inp = "sell 2 gold 4 silver"
+            action, goods, amount = parse_player_input(inp)
+        with self.assertRaises(Exception):
+            inp = "sell gold silver"
+            action, goods, amount = parse_player_input(inp)
+        with self.assertRaises(Exception):
+            inp = "sell gold 3 silver"
+            action, goods, amount = parse_player_input(inp)
+
+        # wrong order: should treat number as second card group and raise
+        # exception
+        with self.assertRaises(Exception):
+            inp = "sell gold 3"
+            action, goods, amount = parse_player_input(inp)
+
+    def test_trade_intended_usage(self):
+        # no numbers
+        inp = "trade camel camel leather for diamond gold"
+        action, player_cards, market_cards = parse_player_input(inp)
+        self.assertEqual(player_cards, ["camel", "camel", "leather"])
+        self.assertEqual(market_cards, ["diamond", "gold"])
+
+        # with numbers
+        inp = "trade 2 camel 1 leather for 1 diamond 1 gold"
+        action, player_cards, market_cards  = parse_player_input(inp)
+        self.assertEqual(player_cards, ["camel", "camel", "leather"])
+        self.assertEqual(market_cards, ["diamond", "gold"])
+
+        # mixture of numbered and non-numbered goods
+        inp = "trade camel camel 1 leather for 1 diamond gold"
+        action, player_cards, market_cards  = parse_player_input(inp)
+        self.assertEqual(player_cards, ["camel", "camel", "leather"])
+        self.assertEqual(market_cards, ["diamond", "gold"])
+
+        inp = "trade camel 2 camel for 1 diamond gold"
+        action, player_cards, market_cards  = parse_player_input(inp)
+        self.assertEqual(player_cards, ["camel", "camel", "camel"])
+        self.assertEqual(market_cards, ["diamond", "gold"])
+
+        # trading zero goods: not legal but this function should parse it.
+        # the caller can check the amounts add up for the trade.
+        inp = "trade camel camel 0 leather for 1 diamond gold"
+        action, player_cards, market_cards  = parse_player_input(inp)
+        self.assertEqual(player_cards, ["camel", "camel"])
+        self.assertEqual(market_cards, ["diamond", "gold"])
+
+        inp = "trade camel camel 0 camel 0 leather for 1 diamond gold"
+        action, player_cards, market_cards  = parse_player_input(inp)
+        self.assertEqual(player_cards, ["camel", "camel"])
+        self.assertEqual(market_cards, ["diamond", "gold"])
+
+
+class Test_parse_card_group(unittest.TestCase):
+    def test_repeated_cards(self):
+        inp = "camel camel leather leather leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 2, "leather": 3})
+
+    def test_single_cards(self):
+        inp = "   camel   "
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": None})
+
+        inp = "camel leather gold"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": None, "leather": None, "gold": None})
+
+        inp = "    camel    leather     gold    "
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": None, "leather": None, "gold": None})
+
+    def test_specified_amounts(self):
+        inp = "3 camel 2 leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 3, "leather": 2})
+
+        # not a legal move, but this function should still parse it
+        inp = "3 camel 0 leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 3, "leather": 0})
+
+    def test_repeated_cards_and_specified_amounts(self):
+        inp = "camel 2 camel 2 leather leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 3, "leather": 3})
+
+        inp = "camel 1 camel 1 leather leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 2, "leather": 2})
+
+        inp = "camel camel 3 leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 2, "leather": 3})
+
+    def test_repeated_cards_and_single_cards(self):
+        inp = "camel camel leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": 2, "leather": None})
+
+    def test_single_cards_and_specified_amounts(self):
+        # the difference between None and 1 is important for other functions
+        inp = "camel 1 leather"
+        cards = parse_card_group(inp)
+        self.assertEqual(cards, {"camel": None, "leather": 1})
+
 
 if __name__ == "__main__":
     unittest.main()
