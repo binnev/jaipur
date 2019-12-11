@@ -186,6 +186,10 @@ class Player():
             for card in cards:
                 self.give(card)
 
+    @property
+    def points(self):
+        return sum(token.value for token in self.tokens)
+
 
 class Game():
     def __init__(self):
@@ -398,9 +402,8 @@ class Game():
             self.player2.tokens.append(Token("largest_herd", 5))
 
         # count token points
-        # TODO: Make a Player.points method
-        player1_points = sum(token.value for token in self.player1.tokens)
-        player2_points = sum(token.value for token in self.player2.tokens)
+        player1_points = self.player1.points
+        player2_points = self.player2.points
         print(f"{self.player1.name} has {player1_points} points")
         print(f"{self.player2.name} has {player2_points} points")
 
@@ -457,27 +460,6 @@ class Game():
                    ]
         return "\n".join(strings)
 
-# %%
-inputs = ("buy camels",
-          "bu",
-          "",
-          " ",
-          "sell",
-          "sell gold",
-          "buy ",
-          "buy diamond",
-          "gold sell",
-          "gold buy",
-          " trade",
-          "trade camel  camel      for gold       silver",
-          "trade 1 camel 1 camel for 1 gold 1 silver",
-          "trade 2 camel for gold silver",
-          "trade 2 camel for 1 gold 1 silver",
-          "trade 3 camel for 2 gold silver",
-          "trade 3 camel for 2 gold 1 silver",
-          "trade  3    camel    for  2 gold     1 silver",
-          "trade 3 camel for 2gold1 silver",
-          )
 
 def parse_player_input(inp):
     inp = inp.strip()
@@ -572,6 +554,12 @@ def parse_card_group(string_of_cards):
             d[card] = amount
     return d
 
+
 if __name__ == "__main__":
     game = Game()
     game.play_game()
+
+
+""" TODO:
+    - fix which player starts on alternating rounds
+"""
