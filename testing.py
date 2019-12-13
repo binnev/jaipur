@@ -1,5 +1,6 @@
 import unittest
-from classes import Token, Deck, parse_player_input, parse_card_group
+from classes import Token, Deck
+from utilities import parse_player_input, parse_card_group
 from exceptions import InvalidInputError, IllegalMoveError
 
 class TestToken(unittest.TestCase):
