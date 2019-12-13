@@ -436,12 +436,12 @@ class Game():
                 return None
 
     def __repr__(self):
-        diamond = "{:<10}".format("diamond:")+"{:<20}".format(str(game.resource_tokens["diamond"]))
-        gold = "{:<10}".format("gold:")+"{:<20}".format(str(game.resource_tokens["gold"]))
-        silver = "{:<10}".format("silver:")+"{:<20}".format(str(game.resource_tokens["silver"]))
-        spice = "{:<10}".format("spice:")+"{:<20}".format(str(game.resource_tokens["spice"]))
-        cloth = "{:<10}".format("cloth:")+"{:<20}".format(str(game.resource_tokens["cloth"]))
-        leather = "{:<10}".format("leather:")+"{:<20}".format(str(game.resource_tokens["leather"]))
+        diamond = "{:<10}".format("diamond:")+"{:<20}".format(str(self.resource_tokens["diamond"]))
+        gold = "{:<10}".format("gold:")+"{:<20}".format(str(self.resource_tokens["gold"]))
+        silver = "{:<10}".format("silver:")+"{:<20}".format(str(self.resource_tokens["silver"]))
+        spice = "{:<10}".format("spice:")+"{:<20}".format(str(self.resource_tokens["spice"]))
+        cloth = "{:<10}".format("cloth:")+"{:<20}".format(str(self.resource_tokens["cloth"]))
+        leather = "{:<10}".format("leather:")+"{:<20}".format(str(self.resource_tokens["leather"]))
 
         strings = ["="*90,
                    f"{self.player1.name}",
@@ -553,11 +553,6 @@ def parse_card_group(string_of_cards):
         else:
             d[card] = amount
     return d
-
-
-if __name__ == "__main__":
-    game = Game()
-    game.play_game()
 
 
 """ TODO:
