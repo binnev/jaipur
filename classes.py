@@ -467,6 +467,9 @@ class Game():
 
 
 """ TODO:
-    - fix which player starts on alternating rounds
+    - fix which player starts on alternating rounds. Loser of the last round
+      to start.
     - don't allow "trade leather cloth for diamond cloth". That's a 1-trade.
+    - If it's a draw on points, go by who has the most bonus tokens. If that's
+      a draw too, go by who has the most goods cards.
 """
