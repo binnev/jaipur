@@ -253,10 +253,11 @@ class Game():
                    "Do one of the following:\n"
                    "\t1) 'buy diamond' --> take 1 diamond from the market\n"
                    "\t2) 'trade leather camel for diamond gold' --> trade your leather & camel for gold & diamond\n"
+                   "\t    or 'trade 3 camel for 3 leather'\n"
                    "\t3) 'sell cloth' --> sell all your cloth. You can specify a number to sell: 'sell 2 cloth'\n"
                    "\t4) 'camels' --> take all the camels\n"
                    )
-        return input(prompt=message).strip()
+        return input(message).strip()
 
     def refill_marketplace(self):
         while len(self.marketplace) < 5:
